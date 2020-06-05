@@ -1,0 +1,33 @@
+# jupyter and python system files
+**/__pycache__
+**/.ipynb_checkpoints
+
+# ignore all images
+**/*.png
+**/*.jpg
+
+# ignore all compressed files
+**/*.iso
+**/*.tar
+**/*.tar.gz
+**/*.gz
+**/*.rar
+**/*.zip
+**/*.bin
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# project specific files
+**/*.npz
+**/*.pickle
+**/*.md
+**/*Copy*.ipynb
+**/*draft*
+results/mcnn/
