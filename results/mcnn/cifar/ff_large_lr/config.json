@@ -1,0 +1,82 @@
+{
+  "root": "/root/dockspace/candidate_training",
+  "workers": 4,
+  "epochs": 4000,
+  "start_epoch": 0,
+  "batch_size": 128,
+  "lr": 0.1,
+  "lrdecay": 0.1,
+  "momentum": 0,
+  "weight_decay": 0,
+  "print_freq": 1000,
+  "resume": "",
+  "main_file": "cifar.npz",
+  "sub_file": null,
+  "test_file": "cifar.npz",
+  "outpath": "/root/dockspace/dnn_double_descent/results/mcnn/cifar/2020-05-09-15-42-29",
+  "model": "mcnn",
+  "model_config": {
+    "num_planes": 64
+  },
+  "num_classes": 10,
+  "train_size": 0,
+  "select_class_list": [],
+  "inject_noise": 0.022222222222222223,
+  "mix_cifar": false,
+  "mix_rate": 0.04,
+  "schedule_lr": false,
+  "max_lr_adjusting_epoch": 0,
+  "use_inverse_sqrt_lr": true,
+  "loss_func": "cross_entropy",
+  "compute_jacobian": false,
+  "track_weights": false,
+  "scale_weights": false,
+  "scale_lr": {
+    "0": 0.05,
+    "3": 0.05,
+    "7": 0.05,
+    "11": 0.05,
+    "17": 0.2
+  },
+  "initial_lr": [
+    {
+      "lr": 0.05
+    },
+    {
+      "lr": 0.1
+    },
+    {
+      "lr": 0.05
+    },
+    {
+      "lr": 0.1
+    },
+    {
+      "lr": 0.05
+    },
+    {
+      "lr": 0.1
+    },
+    {
+      "lr": 0.05
+    },
+    {
+      "lr": 0.1
+    },
+    {
+      "lr": 0.2
+    }
+  ],
+  "initial_lr_decay": [],
+  "use_Adam": false,
+  "use_LBFGS": false,
+  "evaluate": false,
+  "track_correct": false,
+  "randomcrop": true,
+  "randomflip": true,
+  "pretrained": false,
+  "details": "emphasize mcnn double descent",
+  "seed": null,
+  "gpu": 1,
+  "distributed": false
+}
