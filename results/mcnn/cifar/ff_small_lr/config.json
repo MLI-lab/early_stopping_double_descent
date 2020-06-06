@@ -1,0 +1,81 @@
+{
+  "root": "/root/dockspace/candidate_training",
+  "workers": 4,
+  "epochs": 4000,
+  "start_epoch": 0,
+  "batch_size": 128,
+  "lr": 0.1,
+  "lrdecay": 0.1,
+  "momentum": 0,
+  "weight_decay": 0,
+  "print_freq": 1000,
+  "resume": "",
+  "main_file": "cifar.npz",
+  "sub_file": null,
+  "test_file": "cifar.npz",
+  "outpath": "/root/dockspace/dnn_double_descent/results/mcnn/cifar/2020-04-29-03-46-13",
+  "model": "mcnn",
+  "model_config": {
+    "num_planes": 64
+  },
+  "num_classes": 10,
+  "select_class_list": [],
+  "inject_noise": 0.022222222222222223,
+  "mix_cifar": false,
+  "mix_rate": 0.04,
+  "schedule_lr": false,
+  "max_lr_adjusting_epoch": 0,
+  "use_inverse_sqrt_lr": true,
+  "loss_func": "cross_entropy",
+  "compute_jacobian": false,
+  "track_weights": false,
+  "scale_weights": false,
+  "scale_lr": {
+    "0": 0.1,
+    "3": 0.1,
+    "7": 0.1,
+    "11": 0.1,
+    "17": 0.001
+  },
+  "initial_lr": [
+    {
+      "lr": 0.1
+    },
+    {
+      "lr": 0.1
+    },
+    {
+      "lr": 0.1
+    },
+    {
+      "lr": 0.1
+    },
+    {
+      "lr": 0.1
+    },
+    {
+      "lr": 0.1
+    },
+    {
+      "lr": 0.1
+    },
+    {
+      "lr": 0.1
+    },
+    {
+      "lr": 0.001
+    }
+  ],
+  "initial_lr_decay": [],
+  "use_Adam": false,
+  "use_LBFGS": false,
+  "evaluate": false,
+  "track_correct": false,
+  "randomcrop": true,
+  "randomflip": true,
+  "pretrained": false,
+  "details": "scaling the learning rate decays across different layers",
+  "seed": null,
+  "gpu": 2,
+  "distributed": false
+}
