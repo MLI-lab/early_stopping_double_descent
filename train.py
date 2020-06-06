@@ -586,10 +586,12 @@ if __name__ == "__main__":
     # Turning off data augmentations random_crop and random_flip
 
     # get CLI parameters
-    parser = argparse.ArgumentParser(description='CLI parameters for training')
+    config_parser = parser = argparse.ArgumentParser(description='Training Config', add_help=False)
     parser.add_argument('-c', '--config', type=str, default='', metavar='FILE',
                         help='JSON file containing the configuration dictionary')
-    parser.add_argument('--root', type=str, default='',
+
+    parser = argparse.ArgumentParser(description='CLI parameters for training')
+    parser.add_argument('--root', type=str, default='', metavar='DIR',
                         help='Root directory')
     parser.add_argument('--main', type=str, default='cifar', metavar='FILE',
                         help='Main file')
@@ -659,10 +661,23 @@ if __name__ == "__main__":
     parser.add_argument('--details', type=str, metavar='N',
                         default='no_detail_given',
                         help='details about the experimental setup')
-    args = parser.parse_args()
 
+
+    def _parse_args():
+        # Do we have a config file to parse?
+        args_config, remaining = config_parser.parse_known_args()
+        if args_config.config:
+            with open(args_config.config) as f:
+                cfg = json.load(f)
+                parser.set_defaults(**cfg)
+
+        # The main arg parser parses the rest of the args, the usual
+        # defaults will have been overridden if config file specified.
+        args = parser.parse_args(remaining)
+        return args
 
     # set parameters
+    args = _parse_args()
 
     # directories
     root = pathlib.Path(args.root) if args.root else pathlib.Path.cwd()
