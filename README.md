@@ -22,6 +22,6 @@ All the figures in the paper can be reproduced by running the respective noteboo
     
 **Figure 4**: Double descent in the two layer neural network and the elimination of the double descent through the scaling of the stepsizes of the two layers can be reproduced by running the `early_stopping_two-layer-nn_double_descent.ipynb` notebook. 
 
-**Figure 1-a, 4**: Double descent in the 5-layer convolutional network and the elimination of the double descent through the scaling of the stepsizes of the different layers can be reproduced by running the `early_stopping_double_descent.ipynb` notebook. 
+**Figure 1-a, 5**: Double descent in the 5-layer convolutional network and the elimination of the double descent through the scaling of the stepsizes of the different layers can be reproduced by running the `early_stopping_double_descent.ipynb` notebook. 
 
 The numerical results can be reproduced by training the 5-layer convolutional network with `python3 train.py --config $CONFIG_FILE` where `CONFIG_FILE` points to the `config.json` file of the desired setup in the `./results/` directory.
