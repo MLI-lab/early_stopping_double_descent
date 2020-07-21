@@ -13,17 +13,16 @@
     4.0
   ],
   "scales": [
-    1.0,
-    0.01
+    0.01,
+    1.0
   ],
   "lr": [
     1e-06,
-    0.0001
+    8e-05
   ],
-  "decay_rate": 0.1,
   "normalized": false,
   "risk_loss": "L1",
-  "use_inverse_sqrt_lr": false,
+  "save_results": true,
   "details": "no_detail_given",
-  "outpath": "/root/dockspace/early_stopping_double_descent/results/two_layer_nn/2020-07-15-11-47-32"
+  "outpath": "/root/dockspace/early_stopping_double_descent/results/two_layer_nn/2020-07-18-13-16-35"
 }
