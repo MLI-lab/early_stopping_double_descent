@@ -53,8 +53,8 @@ def main_worker(gpu, ngpus_per_node, args):
 
     # create model
     if args.pretrained:
-        print("=> using pre-trained model '{}'".format(args.arch))
-        model = models.__dict__[args.arch](pretrained=True)
+        print("=> using pre-trained model '{}'".format(args.model))
+        model = models.__dict__[args.model](pretrained=True)
     else:
         print("=> creating model '{}'".format(args.model))
         model = model_select.BaseModel.create(args.model, **args.model_config)
@@ -65,19 +65,19 @@ def main_worker(gpu, ngpus_per_node, args):
         model = model.cuda(args.gpu)
     else:
         # DataParallel will divide and allocate batch_size to all available GPUs
-        if args.arch.startswith('alexnet') or args.arch.startswith('vgg'):
+        if args.model.startswith('alexnet') or args.model.startswith('vgg'):
             model.features = torch.nn.DataParallel(model.features)
             model.cuda()
         else:
             model = torch.nn.DataParallel(model).cuda()
 
     # define loss function (criterion) and optimizer
-    if args.loss_func in ['cross', 'cross_entropy', 'entropy']:
+    if args.loss in ['cross', 'cross_entropy', 'entropy']:
         criterion = nn.CrossEntropyLoss().cuda(args.gpu)
     
-    elif args.loss_func in ['l2', 'l2_squared', 'squared', 'MSE']:
+    elif args.loss in ['l2', 'l2_squared', 'squared', 'MSE']:
         print('[INFO] Using MSE loss function instead of Cross Entropy.')
-        args.loss_func = 'l2'
+        args.loss = 'l2'
         criterion = nn.MSELoss().cuda(args.gpu)
 
     if args.opt.lower() == 'sgd':
@@ -129,10 +129,10 @@ def main_worker(gpu, ngpus_per_node, args):
     cudnn.benchmark = True
 
     # Data loading code
-    main_file = args.root / args.main_file
-    test_file = args.root / args.test_file
+    main_file = args.root / args.main
+    test_file = args.root / args.test
     if args.sub_file:
-        sub_file = args.root / args.sub_file
+        sub_file = args.root / args.sub
     normalize = transforms.Normalize(mean=[0.4914, 0.4822, 0.4465],
                                      std=[0.2023, 0.1994, 0.2010])
 
@@ -156,7 +156,7 @@ def main_worker(gpu, ngpus_per_node, args):
                                     ]), 
                                     train=False)
     
-    if args.sub_file:
+    if args.sub:
         sub_dataset = CandidateDataset(sub_file, 
                                         transforms.Compose([
                                             transforms.ToTensor(),
@@ -165,25 +165,25 @@ def main_worker(gpu, ngpus_per_node, args):
                                         train=False)
     
 
-    if args.train_size or args.select_class_list:
-        if not args.select_class_list:
-            args.select_class_list = list(range(args.num_classes))
+    if args.train_size or args.select_classes:
+        if not args.select_classes:
+            args.select_classes = list(range(args.num_classes))
         sel_idx = []
-        for lbl in args.select_class_list:
+        for lbl in args.select_classes:
             lbl_idx = [i for i, t in enumerate(train_dataset.targets) if t == lbl]
             sel_idx += random.sample(lbl_idx, (args.train_size if args.train_size else len(lbl_idx)))
         train_dataset.samples = train_dataset.samples[sel_idx]
         train_dataset.targets = train_dataset.targets[sel_idx]
-        for cur_idx, cur_cls in enumerate(args.select_class_list):
+        for cur_idx, cur_cls in enumerate(args.select_classes):
             train_dataset.targets[train_dataset.targets==cur_cls] = cur_idx
         
         sel_idx = []
-        for lbl in args.select_class_list:
+        for lbl in args.select_classes:
             lbl_idx = [i for i, t in enumerate(test_dataset.targets) if t == lbl]
             sel_idx += lbl_idx
         test_dataset.samples = test_dataset.samples[sel_idx]
         test_dataset.targets = test_dataset.targets[sel_idx]
-        for cur_idx, cur_cls in enumerate(args.select_class_list):
+        for cur_idx, cur_cls in enumerate(args.select_classes):
             test_dataset.targets[test_dataset.targets==cur_cls] = cur_idx
     
         
@@ -191,7 +191,7 @@ def main_worker(gpu, ngpus_per_node, args):
     if args.inject_noise:
         im_per_class = int(len(train_dataset) / args.num_classes)
         noisy_labels = np.zeros((len(train_dataset),), dtype=int)
-        num_shuffle = int(im_per_class * args.inject_noise)
+        num_shuffle = int(im_per_class * (args.inject_noise / (args.num_classes - 1)))
         for i in range(args.num_classes):
             noisy_idx = []
             cur_idx = [idx for idx, label in enumerate(train_dataset.targets) if label==i]
@@ -247,7 +247,7 @@ def main_worker(gpu, ngpus_per_node, args):
         batch_size=args.batch_size, shuffle=False,
         num_workers=args.workers, pin_memory=True)
     
-    if args.sub_file:
+    if args.sub:
         val_loader2 = torch.utils.data.DataLoader(
             sub_dataset,
             batch_size=args.batch_size, shuffle=False,
@@ -258,8 +258,16 @@ def main_worker(gpu, ngpus_per_node, args):
         return
     
     if args.compute_jacobian:
+        assert not args.compute_jacobian_svd, "Jacobian prod and Jacobian SVD cannot be set at the same time."
         gvec = (torch.randn((1, args.num_classes)) / len(train_dataset)).cuda(args.gpu, non_blocking=True)
     
+    if args.compute_jacobian_svd:
+        vconv, vfc = get_jacobian_svd(train_loader, model, args, average_batches=args.average_batches)
+
+        svd_file = args.outpath / 'jacobian_svd.npz'
+        np.savez(svd_file, vconv=vconv, vfc=vfc)
+        return
+
     # TODO: tracking weights of the model
     if args.track_weights:
         layer_idx = [i for i, cl in enumerate(model) if 'weight' in dir(cl)]
@@ -348,7 +356,7 @@ def main_worker(gpu, ngpus_per_node, args):
         epoch_log.update({'test': {'acc1': acc1.cpu().numpy().item(), 
                                    'acc5': acc5.cpu().numpy().item()}})
         
-        if args.sub_file or args.mix_cifar:
+        if args.sub:
             dum_acc1, dum_acc5 = validate(val_loader2, model, criterion, args)
             epoch_log.update({'subset': {'acc1': dum_acc1.cpu().numpy().item(), 
                                          'acc5': dum_acc5.cpu().numpy().item()}})
@@ -402,7 +410,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
         save_checkpoint({
             'epoch': epoch + 1,
-            'arch': args.arch,
+            'arch': args.model,
             'state_dict': model.state_dict(),
             'best_acc1': best_acc1,
             'optimizer' : optimizer.state_dict(),
@@ -425,7 +433,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
         data_time.update(time.time() - end)
         
         if args.use_inverse_sqrt_lr:
-            assert not (args.max_lr_adjusting_epoch > 0), "lr scheduler crash, step and inverse sqrt lr can't be mutually set"
+            assert not (args.decay_max_epochs > 0), "lr scheduler crash, step and inverse sqrt lr can't be mutually set"
             
             for cur_p, param_group in enumerate(optimizer.param_groups):
                 d_rate = (args.initial_lr_decay[cur_p]['decay']
@@ -440,7 +448,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
         if args.gpu is not None:
             input = input.cuda(args.gpu, non_blocking=True)
         
-        if args.loss_func == 'l2':
+        if args.loss == 'l2':
             zero_mat = np.zeros((len(target), args.num_classes), dtype=int)
             zero_mat[list(range(len(target))), target] = 1
             targetl2 = torch.from_numpy(zero_mat).float()
@@ -448,7 +456,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
         target = target.cuda(args.gpu, non_blocking=True)
         
         # for LBFGS
-        if args.use_LBFGS:
+        if args.opt.lower() == 'lbfgs':
             def closure():
                 optimizer.zero_grad()
                 output = model(input)
@@ -461,10 +469,10 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
         else:
             # compute output
             output = model(input)
-            if args.loss_func == 'l2':
+            if args.loss == 'l2':
                 loss = criterion(output, targetl2)
             else:
-                loss = criterion(output, target)
+                loss = criterion(output, target) 
 
             # measure accuracy and record loss
             acc1, acc5 = accuracy(output, target, topk=(1, 5))
@@ -511,7 +519,7 @@ def validate(val_loader, model, criterion, args):
             if args.gpu is not None:
                 input = input.cuda(args.gpu, non_blocking=True)
             
-            if args.loss_func == 'l2':
+            if args.loss == 'l2':
                 zero_mat = np.zeros((len(target), args.num_classes), dtype=int)
                 zero_mat[list(range(len(target))), target] = 1
                 targetl2 = torch.from_numpy(zero_mat).float()
@@ -520,7 +528,7 @@ def validate(val_loader, model, criterion, args):
 
             # compute output
             output = model(input)
-            if args.loss_func == 'l2':
+            if args.loss == 'l2':
                 loss = criterion(output, targetl2)
             else:
                 loss = criterion(output, target)
@@ -596,27 +604,35 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='CLI parameters for training')
     parser.add_argument('--root', type=str, default='', metavar='DIR',
                         help='Root directory')
-    parser.add_argument('--main', type=str, default='cifar', metavar='FILE',
+    parser.add_argument('--main', type=str, default='cifar.npz', metavar='FILE',
                         help='Main file')
     parser.add_argument('--test', type=str, default='cifar.npz', metavar='FILE',
                         help='Test file')
     parser.add_argument('--sub', type=str, default='',
                         help='Sub file')
-    parser.add_argument('--epochs', type=int, default=90, metavar='EPOCH'
+    parser.add_argument('--epochs', type=int, default=90, metavar='EPOCH',
                         help='Epochs (default: 90)')
-    parser.add_argument('--batch-size', type=int, default=128, metavar='BATCH'
+    parser.add_argument('--start-epoch', type=int, default=0,
+                        help='Starting epoch (default: 0)')
+    parser.add_argument('--batch-size', type=int, default=128, metavar='BATCH',
                         help='Batch size (default: 128)')
     parser.add_argument('--print-freq', type=int, default=1000,
                         help='CLI output printing frequency (default: 1000)')
+    parser.add_argument('--workers', type=int, default=4, metavar='WORKERS',
+                        help='Number of workers (default: 4)')
     parser.add_argument('--gpu', type=int, default=None,
                         help='Number of GPUS to use')
     parser.add_argument('--seed', type=int, default=None,
                         help='Random seed')                        
     parser.add_argument('--model', type=str, default='resnet',
                         help='Model architecture')   
+    parser.add_argument('--pretrained', action='store_true', default=False,
+                        help='Use pretrained model')
     parser.add_argument('--model-config')
-    parser.add_argument('--num-planes', type=int, default=64, metavar='WIDTH'
+    parser.add_argument('--num-planes', type=int, default=64, metavar='WIDTH',
                         help='Model width (default: 64)')
+    parser.add_argument('--layer-names', action='store_true', default=False,
+                        help='Initialize model with names for the layers.') 
     parser.add_argument('--opt', default='sgd', type=str, metavar='OPTIMIZER',
                         help='Optimizer (default: "sgd")')
     parser.add_argument('--loss', type=str, default='cross_entropy', metavar='LOSS',
@@ -643,26 +659,34 @@ if __name__ == "__main__":
                         help='Disable random flip augmentation')  
     parser.add_argument('--train-size', type=int, default=0,
                         help='Size of the random training subset to use (default: all)')
-    parser.add_argument('--select-classes', default=[], type=int,
-                        help='Selected subset of classes (default: all)')                        
+    parser.add_argument('--select-classes', default=[], type=int, nargs='*',
+                        help='Selected subset of classes (default: all)')              
     parser.add_argument('--num-classes', type=int, default=10, metavar='N',
                         help='Number of label classes (default: 10)')
     parser.add_argument('--inject-noise', type=float, default=0.0, metavar='NOISE',
                         help='symmetric noise level for injection')
     parser.add_argument('--evaluate', action='store_true', default=False,
                         help='Evaluate performance and quit')   
-    parser.add_argument('--resume', default='checkpoint.pth.tar', type=str, metavar='RESUME',
+    parser.add_argument('--resume', default='', type=str, metavar='RESUME',
                         help='Resume from checkpoint')
     parser.add_argument('--track-correct', action='store_true', default=False,
                         help='Track indices of correctly classified examples')   
     parser.add_argument('--scale-lr', type=float, default=None, metavar='SCALE',
                         help='Scale the learning rate of the fully connected layer')
+    parser.add_argument('--initial-lr')
+    parser.add_argument('--scale-weights')
+    parser.add_argument('--initial-lr-decay', default=[],
+                        help='Initial learning rate decay')
     parser.add_argument('--compute-jacobian', action='store_true', default=False,
                         help='Record the Jacobian norm')   
+    parser.add_argument('--compute-jacobian-svd', action='store_true', default=False,
+                        help='Compute the SVD of the Jacobian')  
+    parser.add_argument('--average-batches', action='store_true', default=False,
+                        help='Whether to average the SVD of the Jacobian across batches')  
     parser.add_argument('--track-weights', action='store_true', default=False,
                         help='Record the norm of the weights')   
-    parser.add_argument('--details', type=str, metavar='N',
-                        default='no_detail_given',
+    parser.add_argument('--details', type=str, metavar='N', nargs='*',
+                        default=['no', 'details', 'given'],
                         help='details about the experimental setup')
 
 
@@ -683,14 +707,19 @@ if __name__ == "__main__":
     args = _parse_args()
 
     # directories
-    root = pathlib.Path(args.root) if args.root else pathlib.Path.cwd()
+    args.root = pathlib.Path(args.root) if args.root else pathlib.Path.cwd()
+
+    # details
+    args.details = ' '.join(args.details)
 
     # size and number of classes
     if args.select_classes:
         args.num_classes = len(args.select_classes)
-    args.inject_noise = args.inject_noise / (args.num_classes - 1)
-    args.model_config = {'num_planes': args.num_planes}
-    args.model_config.update({'num_classes': args.num_classes})
+    if not isinstance(args.model_config, dict):
+        args.model_config = {'num_planes': args.num_planes}
+        args.model_config.update({'num_classes': args.num_classes})
+        if args.layer_names:
+            args.model_config.update({'layer_names': args.layer_names})
 
     args.scale_lr = {'17': args.lr * args.scale_lr} if args.scale_lr else {}
 
