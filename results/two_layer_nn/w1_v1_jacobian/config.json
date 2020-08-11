@@ -1,0 +1,29 @@
+{
+  "root": "",
+  "iterations": 50000,
+  "samples": 100,
+  "print_freq": 100,
+  "gpu": null,
+  "seed": 12,
+  "dim": 50,
+  "hidden": 250,
+  "sigmas": "geo",
+  "s_range": [
+    1.0,
+    4.0
+  ],
+  "scales": [
+    1.0,
+    1.0
+  ],
+  "lr": [
+    1e-06,
+    8e-05
+  ],
+  "normalized": false,
+  "risk_loss": "L1",
+  "jacobian": true,
+  "save_results": true,
+  "details": "no_detail_given",
+  "outpath": "/root/dockspace/early_stopping_double_descent/results/two_layer_nn/2020-08-09-11-11-45"
+}
