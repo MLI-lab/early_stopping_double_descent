@@ -12,26 +12,26 @@ class linear_model():
             self.beta = beta
         
         self.sigma_noise = sigma_noise
-
-        if sigmas in ['log', 'logarithmic']:
-            if normalized:
-                self.sigmas = np.logspace(s_range[0], s_range[1], d) / np.sqrt(self.d))
-            else:
-                self.sigmas = np.logspace(s_range[0], s_range[1], d)
         
-        if sigmas in ['geo', 'geometric']:
+        if isinstance(sigmas, int) or isinstance(sigmas, float):
             if normalized:
-                self.sigmas = np.geomspace(s_range[0], s_range[1], d) / np.sqrt(self.d))
+                self.sigmas = np.array([sigmas] * d) / np.sqrt(self.d)
+            else:
+                self.sigmas = np.array([sigmas] * d) 
+        
+        elif sigmas in ['geo', 'geometric']:
+            if normalized:
+                self.sigmas = np.geomspace(s_range[0], s_range[1], d) / np.sqrt(self.d)
             else:
                 self.sigmas = np.geomspace(s_range[0], s_range[1], d)
         
-        if sigmas is None:
+        elif sigmas is None:
             if normalized:
-                self.sigmas = (np.array([1 for i in range(np.floor(d))] +
-                                    [10 for i in range(np.ceil(d))]) / np.sqrt(self.d))
+                self.sigmas = (np.array([1 for i in range(int(np.floor(d/2)))] +
+                                    [0.01 for i in range(int(np.ceil(d/2)))]) / np.sqrt(self.d))
             else:
-                self.sigmas = np.array([1 for i in range(np.floor(d))] +
-                                    [10 for i in range(np.ceil(d))])
+                self.sigmas = np.array([1 for i in range(int(np.floor(d/2)))] +
+                                    [0.01 for i in range(int(np.ceil(d/2)))])
         else:
             self.sigmas = sigmas
             
