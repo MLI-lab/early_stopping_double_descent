@@ -15,6 +15,9 @@ from IPython.core.debugger import set_trace
 from PIL import Image
 import pickle
 
+import sys
+repo_root = os.path.join(os.getcwd(), './code/')
+sys.path.append(repo_root)
 from train_utils import (CandidateDataset, AverageMeter, 
                         save_checkpoint, save_config, 
                         adjust_learning_rate)

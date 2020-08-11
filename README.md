@@ -23,3 +23,17 @@ All the figures in the paper can be reproduced by running the respective noteboo
 **Figure 1-a, 4**: Double descent in the 5-layer convolutional network and the elimination of the double descent through the scaling of the learning rates of the different layers can be reproduced by running the `early_stopping_double_descent.ipynb` notebook. 
 
 The numerical results can be reproduced by training the 5-layer convolutional network with `python3 train.py --config $CONFIG_FILE` where `CONFIG_FILE` points to the `config.json` file of the desired setup in the `./results/` directory.
+
+## Citation
+```
+@article{heckel_yilmaz_2020,
+    author    = {Reinhard Heckel and Fatih Furkan Yilmaz},
+    title     = {Early Stopping in Deep Networks: Double Descent and How to Eliminate it},
+    journal   = {arXiv:2007.10099},
+    year      = {2020}
+}
+```
+
+## Licence
+
+All files are provided under the terms of the Apache License, Version 2.0.
