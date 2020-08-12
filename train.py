@@ -221,6 +221,7 @@ def main_worker(gpu, ngpus_per_node, args):
             num_workers=args.workers, pin_memory=True)
 
     if args.evaluate:
+        save_config(args)
         validate(val_loader, model, criterion, args)
         return
     
@@ -229,10 +230,11 @@ def main_worker(gpu, ngpus_per_node, args):
         gvec = (torch.randn((1, args.num_classes)) / len(train_dataset)).cuda(args.gpu, non_blocking=True)
     
     if args.compute_jacobian_svd:
-        vconv, vfc = get_jacobian_svd(train_loader, model, args, average_batches=args.average_batches)
+        sv, vconv, vfc = get_jacobian_svd(train_loader, model, args, average_batches=args.average_batches)
 
         svd_file = args.outpath / 'jacobian_svd.npz'
-        np.savez(svd_file, vconv=vconv, vfc=vfc)
+        np.savez(svd_file, sv=sv, vconv=vconv, vfc=vfc)
+        save_config(args)
         return
 
     # TODO: tracking weights of the model

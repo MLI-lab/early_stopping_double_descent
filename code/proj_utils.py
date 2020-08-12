@@ -65,7 +65,9 @@ def get_jacobian_svd(train_loader, model, args, average_batches=False):
     gradient_mat = []
 
     npars = []
-    for ind,p in enumerate(list(filter(lambda p: p.grad is not None and len(p.data.shape)>1, net.parameters()))):
+    for ind,p in enumerate(list(
+                    filter(lambda p: p.requires_grad and len(p.data.shape)>1, model.parameters())
+                )):
         npars.append(list(p.data.shape))
     nconv = np.prod([ np.prod(i) for i in npars[:-1] ])
     nfc = np.prod(npars[-1])
@@ -94,7 +96,11 @@ def get_jacobian_svd(train_loader, model, args, average_batches=False):
                     
             grad_batch.append(np.concatenate(cur_gradient))  
 
+        if not average_batches:
+            print('Computing the SVD of the Jacobian for a single batch...')
         uv, sv, vtv = np.linalg.svd(grad_batch, full_matrices=False) 
+        if not average_batches:
+            print('DONE!')
 
         vconv, vfc = [], []
         for cur_v in vtv:
@@ -104,7 +110,7 @@ def get_jacobian_svd(train_loader, model, args, average_batches=False):
         vfc = np.array(vfc)
 
         if not average_batches:
-            return vconv, vfc
+            return sv, vconv, vfc
 
         running_conv.push(vconv)
         running_fc.push(vfc)
