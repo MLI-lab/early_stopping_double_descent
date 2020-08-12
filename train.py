@@ -132,8 +132,8 @@ def main_worker(gpu, ngpus_per_node, args):
     # Data loading code
     main_file = args.root / args.main
     test_file = args.root / args.test
-    if args.sub_file:
-        sub_file = args.root / args.sub
+    if args.sub:
+        sub = args.root / args.sub
     normalize = transforms.Normalize(mean=[0.4914, 0.4822, 0.4465],
                                      std=[0.2023, 0.1994, 0.2010])
 
