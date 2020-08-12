@@ -14,6 +14,7 @@ import numpy as np
 from IPython.core.debugger import set_trace
 from PIL import Image
 import pickle
+import argparse
 
 import sys
 repo_root = os.path.join(os.getcwd(), './code/')
@@ -201,40 +202,6 @@ def main_worker(gpu, ngpus_per_node, args):
             noisy_idx += [i for idx in shuffled_idx[:im_per_class - args.num_classes*num_shuffle]]
             noisy_labels[cur_idx] = np.array(noisy_idx)
         train_dataset.targets = noisy_labels
-    
-    # TODO: Replace fraction of one training set randomly with another.
-    if args.mix_cifar:
-        assert args.mix_rate, "mix_rate should be given when mix_cifar is set"
-        assert args.traindir2, "traindir2 must be given when mix_cifar is set"
-        assert not args.inject_noise, "inject_noise should not be given when mix_cifar is set"
-        assert not args.testdir2, "only one testdir can be set when mix_cifar is set"
-        
-        traindir2 = os.path.join(args.root, args.traindir2)
-        clean_dataset = datasets.ImageFolder(
-            traindir2,
-            transforms.Compose([
-                transforms.ToTensor(),
-                normalize,
-            ]))
-        
-        im_per_class = int(len(train_dataset) / len(train_dataset.classes))
-        num_shuffle = int(im_per_class * args.mix_rate)
-        shuffled_samples = []
-        clean_samples = []
-        for i in range(len(train_dataset.classes)):
-            cur_imgs = [s[0] for s in train_dataset.samples if s[1]==i]
-            cur_imgs = random.sample(cur_imgs, im_per_class - num_shuffle)
-            mix_imgs = [s[0] for s in clean_dataset.samples if s[1]==i]
-            mix_imgs = random.sample(mix_imgs, num_shuffle)
-            clean_samples += [(img, i) for img in mix_imgs]
-            shuffled_samples += [(img, i) for img in cur_imgs + mix_imgs]
-            
-        train_dataset.samples = shuffled_samples
-        clean_dataset.samples = clean_samples
-        
-        val_loader2 = torch.utils.data.DataLoader(
-            clean_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
-            num_workers=args.workers, pin_memory=True, sampler=train_sampler)
         
     train_sampler = None
 
