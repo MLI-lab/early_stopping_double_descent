@@ -22,7 +22,7 @@ sys.path.append(repo_root)
 from train_utils import (CandidateDataset, AverageMeter, 
                         save_checkpoint, save_config, 
                         adjust_learning_rate)
-from proj_utils import get_jacobian_prod
+from proj_utils import get_jacobian_prod, get_jacobian_svd
 
 import torch
 import torch.nn as nn
