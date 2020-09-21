@@ -27,6 +27,7 @@ from proj_utils import get_jacobian_prod, get_jacobian_svd
 import torch
 import torch.nn as nn
 import torch.nn.parallel
+import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 import torch.optim
 import torch.multiprocessing as mp
@@ -43,6 +44,10 @@ import model_select
 cifar10_classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
 
 best_acc1 = 0
+
+# holders for epoch-wise bias-variance calculations
+OUTPUTS_SUM_LIST = []
+OUTPUTS_SUMNORMSQUARED_LIST = []
 
 
 
@@ -187,7 +192,20 @@ def main_worker(gpu, ngpus_per_node, args):
         for cur_idx, cur_cls in enumerate(args.select_classes):
             test_dataset.targets[test_dataset.targets==cur_cls] = cur_idx
     
-        
+
+    # split the training set for trials
+    if args.trials:
+        if not args.select_classes:
+            args.select_classes = list(range(args.num_classes))
+        sel_idx = []
+        for lbl in args.select_classes:
+            lbl_idx = [i for i, t in enumerate(train_dataset.targets) if t == lbl]
+            sel_idx += list(np.split(np.random.permutation(lbl_idx), args.trials)[args.split])
+
+        train_dataset.samples = train_dataset.samples[sel_idx]
+        train_dataset.targets = train_dataset.targets[sel_idx]
+
+    
     # Inject symmetric noise to training set
     if args.inject_noise:
         im_per_class = int(len(train_dataset) / args.num_classes)
@@ -304,7 +322,7 @@ def main_worker(gpu, ngpus_per_node, args):
     log_file = args.outpath / 'log.json'
 
     for epoch in range(args.start_epoch, args.epochs):
-        if (epoch < args.max_lr_adjusting_epoch) and (not args.schedule_lr):
+        if (epoch < args.decay_max_epochs) and (not args.schedule_lr):
             adjust_learning_rate(optimizer, epoch, args)
 
         # train for one epoch
@@ -317,18 +335,40 @@ def main_worker(gpu, ngpus_per_node, args):
             scheduler.step()
 
         # evaluate on validation set
-        dum_acc1, dum_acc5 = validate(train_loader, model, criterion, args)
+        dum_acc1, dum_acc5, _ = validate(train_loader, model, criterion, args)
         epoch_log.update({'train': {'acc1': dum_acc1.cpu().numpy().item(), 
                                     'acc5': dum_acc5.cpu().numpy().item()}})
         
-        acc1, acc5 = validate(val_loader, model, criterion, args)
+        acc1, acc5, test_loss = validate(val_loader, model, criterion, args)
         epoch_log.update({'test': {'acc1': acc1.cpu().numpy().item(), 
                                    'acc5': acc5.cpu().numpy().item()}})
         
         if args.sub:
-            dum_acc1, dum_acc5 = validate(val_loader2, model, criterion, args)
+            dum_acc1, dum_acc5, _ = validate(val_loader2, model, criterion, args)
             epoch_log.update({'subset': {'acc1': dum_acc1.cpu().numpy().item(), 
                                          'acc5': dum_acc5.cpu().numpy().item()}})
+
+        
+        # compute the bias and variance
+        if args.compute_variance:
+
+            if args.trial_file:
+                cur_file = os.path.join(args.trial_file, '{}.pickle'.format(epoch))
+                with open(cur_file, 'rb') as fn:
+                    outputs_sum, outputs_sumnormsquared, test_loss_sum = pickle.load(fn)
+            else:
+                outputs_sum = torch.Tensor(len(test_dataset), args.num_classes).zero_().cuda(args.gpu)
+                outputs_sumnormsquared = torch.Tensor(len(test_dataset)).zero_().cuda(args.gpu)
+                test_loss_sum = 0
+            
+            test_loss_sum += test_loss
+            bias2, variance, outputs_sum, outputs_sumnormsquared = compute_bias_variance(model, val_loader, args, outputs_sum, outputs_sumnormsquared)
+            variance_unbias = variance * args.trials / (args.trials - 1.0)
+            bias2_unbias = test_loss_sum / (args.split + 1) - variance_unbias
+        
+            epoch_log.update({'bias': bias2_unbias.item(), 'variance': variance_unbias.item()})
+            with open(args.outpath / '{}.pickle'.format(epoch), 'wb') as fn:
+                pickle.dump([outputs_sum, outputs_sumnormsquared, test_loss_sum], fn)
 
         # compute the jacobian of the network
         if args.compute_jacobian:
@@ -383,7 +423,31 @@ def main_worker(gpu, ngpus_per_node, args):
             'state_dict': model.state_dict(),
             'best_acc1': best_acc1,
             'optimizer' : optimizer.state_dict(),
-        }, is_best)
+        }, is_best, outdir=(args.outpath if args.secure_checkpoint else None))
+
+
+def compute_bias_variance(net, testloader, args, outputs_sum, outputs_sumnormsquared):
+    net.eval()
+    bias2 = 0
+    variance = 0
+    total = 0
+    with torch.no_grad():
+        for batch_idx, (inputs, targets) in enumerate(testloader):
+            inputs = inputs.cuda(args.gpu, non_blocking=True)
+            targets = targets.cuda(args.gpu, non_blocking=True)
+            targets_onehot = torch.FloatTensor(targets.size(0), args.num_classes).cuda(args.gpu)
+            targets_onehot.zero_()
+            targets_onehot.scatter_(1, targets.view(-1, 1).long(), 1)
+            outputs = net(inputs)
+            outputs = F.softmax(outputs, dim=1)
+            outputs_sum[total:(total + targets.size(0)), :] += outputs
+            outputs_sumnormsquared[total:total + targets.size(0)] += outputs.norm(dim=1) ** 2.0
+
+            bias2 += (outputs_sum[total:total + targets.size(0), :] / (args.split + 1) - targets_onehot).norm() ** 2.0
+            variance += outputs_sumnormsquared[total:total + targets.size(0)].sum()/(args.split + 1) - (outputs_sum[total:total + targets.size(0), :]/(args.split + 1)).norm() ** 2.0
+            total += targets.size(0)
+
+    return bias2 / total, variance / total, outputs_sum, outputs_sumnormsquared
 
 
 def train(train_loader, model, criterion, optimizer, epoch, args):
@@ -535,7 +599,7 @@ def validate(val_loader, model, criterion, args):
                 json.dump(corr_dict, f, indent=2)
             return
 
-    return top1.avg, top5.avg
+    return top1.avg, top5.avg, losses.avg
 
 
 def accuracy(output, target, topk=(1,), track=False):
@@ -589,6 +653,8 @@ if __name__ == "__main__":
                         help='CLI output printing frequency (default: 1000)')
     parser.add_argument('--workers', type=int, default=4, metavar='WORKERS',
                         help='Number of workers (default: 4)')
+    parser.add_argument('--secure-checkpoint', action='store_true', default=False,
+                        help='Checkpoint in outdir rather than rootdir.')  
     parser.add_argument('--gpu', type=int, default=None,
                         help='Number of GPUS to use')
     parser.add_argument('--seed', type=int, default=None,
@@ -628,6 +694,14 @@ if __name__ == "__main__":
                         help='Disable random flip augmentation')  
     parser.add_argument('--train-size', type=int, default=0,
                         help='Size of the random training subset to use (default: all)')
+    parser.add_argument('--compute-variance', action='store_true', default=False,
+                        help='Compute the bias and variance')
+    parser.add_argument('--trials', type=int, default=0,
+                        help='How many training splits to use (default: None)')
+    parser.add_argument('--split', type=int, default=0,
+                        help='Current training split to use (default: first)')
+    parser.add_argument('--trial-file', default='', type=str, metavar='FILE',
+                        help='Resume from existing trial file')
     parser.add_argument('--select-classes', default=[], type=int, nargs='*',
                         help='Selected subset of classes (default: all)')              
     parser.add_argument('--num-classes', type=int, default=10, metavar='N',
