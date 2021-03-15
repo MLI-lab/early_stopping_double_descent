@@ -171,6 +171,7 @@ def main_worker(gpu, ngpus_per_node, args):
                                         train=False)
     
 
+    args.kmax = min(5, len(args.select_classes) - 1) if args.select_classes else 5
     if args.train_size or args.select_classes:
         if not args.select_classes:
             args.select_classes = list(range(args.num_classes))
@@ -315,8 +316,8 @@ def main_worker(gpu, ngpus_per_node, args):
             with torch.no_grad():
                 model[-1].bias.uniform_(-bound, bound)
         scale_initialization(model, [0,3,7,11], float(args.details.split()[-1]))
-    
-    
+
+
     save_config(args)
     train_log = []
     log_file = args.outpath / 'log.json'
@@ -335,9 +336,9 @@ def main_worker(gpu, ngpus_per_node, args):
             scheduler.step()
 
         # evaluate on validation set
-        dum_acc1, dum_acc5, _ = validate(train_loader, model, criterion, args)
-        epoch_log.update({'train': {'acc1': dum_acc1.cpu().numpy().item(), 
-                                    'acc5': dum_acc5.cpu().numpy().item()}})
+        tr_acc1, tr_acc5, _ = validate(train_loader, model, criterion, args)
+        epoch_log.update({'train': {'acc1': tr_acc1.cpu().numpy().item(), 
+                                    'acc5': tr_acc5.cpu().numpy().item()}})
         
         acc1, acc5, test_loss = validate(val_loader, model, criterion, args)
         epoch_log.update({'test': {'acc1': acc1.cpu().numpy().item(), 
@@ -471,7 +472,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
             for cur_p, param_group in enumerate(optimizer.param_groups):
                 d_rate = (args.initial_lr_decay[cur_p]['decay']
                           if args.initial_lr_decay
-                          else 512)
+                          else args.inverse_rate)
                 base_lr = (args.initial_lr[cur_p]['lr']
                           if args.initial_lr
                           else args.lr)
@@ -508,7 +509,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
                 loss = criterion(output, target) 
 
             # measure accuracy and record loss
-            acc1, acc5 = accuracy(output, target, topk=(1, 5))
+            acc1, acc5 = accuracy(output, target, topk=(1, args.kmax))
             losses.update(loss.item(), input.size(0))
             top1.update(acc1[0], input.size(0))
             top5.update(acc5[0], input.size(0))
@@ -568,12 +569,12 @@ def validate(val_loader, model, criterion, args):
             
             # record correctly classified examples
             if args.track_correct:
-                correct = accuracy(output, target, topk=(1, 1), track=True)
+                correct = accuracy(output, target, topk=(1, args.kmax), track=True)
                 corr_dict['correct'] += [(i*args.batch_size) + idx for idx, is_corr in 
                                          enumerate(correct) if is_corr]
 
             # measure accuracy and record loss
-            acc1, acc5 = accuracy(output, target, topk=(1, 1))
+            acc1, acc5 = accuracy(output, target, topk=(1, args.kmax))
             losses.update(loss.item(), input.size(0))
             top1.update(acc1[0], input.size(0))
             top5.update(acc5[0], input.size(0))
@@ -686,6 +687,8 @@ if __name__ == "__main__":
                         help='max number of epochs to decay LR')                        
     parser.add_argument('--use-inverse-sqrt-lr', action='store_true', default=False,
                         help='Use inverse square-root learning rate decay')   
+    parser.add_argument('--inverse-rate', type=float, default=512.0, metavar='RATE',
+                        help='Inverse square-root decay rate (default: 512)')
     parser.add_argument('--schedule-lr', action='store_true', default=False,
                         help='Use lr scheduler')  
     parser.add_argument('--norandomcrop', action='store_true', default=False,
@@ -775,7 +778,18 @@ if __name__ == "__main__":
     args.outpath = (pathlib.Path.cwd() / 'results' / args.model / 
                     os.path.splitext(args.main)[0] / current_date)
 
-    args.outpath.mkdir(exist_ok=True, parents=True)
+    if not args.outpath.exists():
+        args.outpath.mkdir(parents=True)
+    else:
+        i = 1
+        new_outpath = args.outpath.parent / (args.outpath.name + '_' + str(i))
+        while new_outpath.exists():
+            i += 1
+            new_outpath = args.outpath.parent / (args.outpath.name + '_' + str(i))
+            assert count < 100, "Could not find an appropriate output path!"
+        args.outpath = new_outpath
+        args.outpath.mkdir(parents=True)
+        
 
     if args.seed is not None:
         random.seed(args.seed)

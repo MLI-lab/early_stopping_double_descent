@@ -1,5 +1,5 @@
 {
-  "root": "/root/dockspace/candidate_training",
+  "root": "./datasets",
   "workers": 4,
   "epochs": 6000,
   "start_epoch": 0,
@@ -13,7 +13,6 @@
   "main_file": "cifar.npz",
   "sub_file": null,
   "test_file": "cifar.npz",
-  "outpath": "/root/dockspace/candidate_training/results/mcnn/cifar/2020-03-02-01-21-42",
   "model": "mcnn",
   "model_config": {
     "num_planes": 64
