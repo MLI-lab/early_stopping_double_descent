@@ -24,7 +24,7 @@ All the figures in the paper can be reproduced by running the respective noteboo
 The numerical results can be reproduced by training the 5-layer convolutional network with `python3 train.py --config $CONFIG_FILE` where `CONFIG_FILE` points to the `config.json` file of the desired setup in the `./results/` directory.
 
 ## Disclaimers
-**Figure 1-a, 7**: The bias and (optimization) variance is measured as proposed in [Yang et al. \[2020\]](https://github.com/yaodongyu/Rethink-BiasVariance-Tradeoff) but adopted to measure bias-variance at each epoch. This may result in highly noisy measurements for the early training phase (see [this notebook](notebooks/early_stopping_deep_double_descent.ipynb) for details).
+**Figure 1-a, 7**: The bias and variance is measured as proposed in [Yang et al. \[2020\]](https://github.com/yaodongyu/Rethink-BiasVariance-Tradeoff) but adopted to measure bias-variance at each epoch. This may result in highly noisy measurements for the early training phase (see [this notebook](notebooks/early_stopping_deep_double_descent.ipynb) for details).
 
 ## Citation
 ```
