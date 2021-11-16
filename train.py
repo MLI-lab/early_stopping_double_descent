@@ -766,8 +766,9 @@ if __name__ == "__main__":
         args.model_config.update({'num_classes': args.num_classes})
         if args.layer_names:
             args.model_config.update({'layer_names': args.layer_names})
-
-    args.scale_lr = {'17': args.lr * args.scale_lr} if args.scale_lr else {}
+    
+    if isinstance(args.scale_lr, dict):
+      args.scale_lr = {'17': args.lr * args.scale_lr.get('17', 1)} if args.scale_lr else {}
 
     # rescale weights
     scale_weights = False
