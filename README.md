@@ -12,8 +12,13 @@ torchvision
 ```
 and can be installed with `pip install -r requirements.txt`.
 
+For this code to run it requires the CIFAR dataset tranformed to an `.npz` file and located in `./datasets` inside the root directory. CIFAR dataset does not come in that format and has a separate raw format. You need to download and convert the dataset before running for `MCNN`(5 layer conc neural net). Run the following to achieve this - 
+
+`python3 get_dataset.py`
+
 
 # Usage
+
 All the figures in the paper can be reproduced by running the respective notebooks as indicated below:
 
 **Figure 2**: Bias-variance trade-off curves for the linear regression model can be reproduced by running the `sum_bias_variance_tradeoffs` notebook.
