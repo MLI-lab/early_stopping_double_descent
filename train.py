@@ -17,11 +17,12 @@ import pickle
 import argparse
 
 import sys
+
 repo_root = os.path.join(os.getcwd(), './code/')
 sys.path.append(repo_root)
-from train_utils import (CandidateDataset, AverageMeter, 
-                        save_checkpoint, save_config, 
-                        adjust_learning_rate)
+from train_utils import (CandidateDataset, AverageMeter,
+                         save_checkpoint, save_config,
+                         adjust_learning_rate)
 from proj_utils import get_jacobian_prod, get_jacobian_svd
 
 import torch
@@ -39,7 +40,6 @@ import torchvision.models as models
 
 import model_select
 
-
 # %%
 cifar10_classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
 
@@ -48,7 +48,6 @@ best_acc1 = 0
 # holders for epoch-wise bias-variance calculations
 OUTPUTS_SUM_LIST = []
 OUTPUTS_SUMNORMSQUARED_LIST = []
-
 
 
 def main_worker(gpu, ngpus_per_node, args):
@@ -64,8 +63,7 @@ def main_worker(gpu, ngpus_per_node, args):
     else:
         print("=> creating model '{}'".format(args.model))
         model = model_select.BaseModel.create(args.model, **args.model_config)
-    
-    
+
     if args.gpu is not None:
         torch.cuda.set_device(args.gpu)
         model = model.cuda(args.gpu)
@@ -80,7 +78,7 @@ def main_worker(gpu, ngpus_per_node, args):
     # define loss function (criterion) and optimizer
     if args.loss in ['cross', 'cross_entropy', 'entropy']:
         criterion = nn.CrossEntropyLoss().cuda(args.gpu)
-    
+
     elif args.loss in ['l2', 'l2_squared', 'squared', 'MSE']:
         print('[INFO] Using MSE loss function instead of Cross Entropy.')
         args.loss = 'l2'
@@ -93,26 +91,25 @@ def main_worker(gpu, ngpus_per_node, args):
     elif args.opt.lower() == 'adam':
         print('[INFO] Using Adam optimizer instead of SGD.')
         optimizer = torch.optim.Adam(model.parameters(), args.lr,
-                                    weight_decay=args.weight_decay)
+                                     weight_decay=args.weight_decay)
     elif args.opt.lower() == 'lbfgs':
         print('[INFO] Using LBFGS optimizer instead of SGD.')
         optimizer = torch.optim.LBFGS(model.parameters(), args.lr,
                                       history_size=20
-                                     )
+                                      )
     else:
         raise ValueError('Incorrect optimizer selection {}'.format(args.opt))
 
     if args.initial_lr:
-        param_setup = [{'params': cur_lay.parameters()} 
+        param_setup = [{'params': cur_lay.parameters()}
                        for i, cur_lay in enumerate(model)
                        if 'weight' in dir(cur_lay)]
         optimizer = torch.optim.SGD(param_setup, args.lr,
                                     momentum=args.momentum,
                                     weight_decay=args.weight_decay)
-        
-    
+
     if args.schedule_lr:
-        scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, 
+        scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer,
                                                       args.lr / 100, args.lr)
 
     # optionally resume from a checkpoint
@@ -148,28 +145,26 @@ def main_worker(gpu, ngpus_per_node, args):
     if not args.norandomflip:
         train_trans_list.append(transforms.RandomHorizontalFlip())
     train_trans_list = train_trans_list + [transforms.ToTensor(), normalize]
-    
-    
+
     train_dataset = CandidateDataset(
         main_file,
         transforms.Compose(train_trans_list)
     )
-    
-    test_dataset = CandidateDataset(test_file, 
+
+    test_dataset = CandidateDataset(test_file,
                                     transforms.Compose([
                                         transforms.ToTensor(),
                                         normalize,
-                                    ]), 
+                                    ]),
                                     train=False)
-    
+
     if args.sub:
-        sub_dataset = CandidateDataset(sub_file, 
-                                        transforms.Compose([
-                                            transforms.ToTensor(),
-                                            normalize,
-                                        ]), 
-                                        train=False)
-    
+        sub_dataset = CandidateDataset(sub_file,
+                                       transforms.Compose([
+                                           transforms.ToTensor(),
+                                           normalize,
+                                       ]),
+                                       train=False)
 
     args.kmax = min(5, len(args.select_classes) - 1) if args.select_classes else 5
     if args.train_size or args.select_classes:
@@ -182,8 +177,8 @@ def main_worker(gpu, ngpus_per_node, args):
         train_dataset.samples = train_dataset.samples[sel_idx]
         train_dataset.targets = train_dataset.targets[sel_idx]
         for cur_idx, cur_cls in enumerate(args.select_classes):
-            train_dataset.targets[train_dataset.targets==cur_cls] = cur_idx
-        
+            train_dataset.targets[train_dataset.targets == cur_cls] = cur_idx
+
         sel_idx = []
         for lbl in args.select_classes:
             lbl_idx = [i for i, t in enumerate(test_dataset.targets) if t == lbl]
@@ -191,8 +186,7 @@ def main_worker(gpu, ngpus_per_node, args):
         test_dataset.samples = test_dataset.samples[sel_idx]
         test_dataset.targets = test_dataset.targets[sel_idx]
         for cur_idx, cur_cls in enumerate(args.select_classes):
-            test_dataset.targets[test_dataset.targets==cur_cls] = cur_idx
-    
+            test_dataset.targets[test_dataset.targets == cur_cls] = cur_idx
 
     # split the training set for trials
     if args.trials:
@@ -206,7 +200,6 @@ def main_worker(gpu, ngpus_per_node, args):
         train_dataset.samples = train_dataset.samples[sel_idx]
         train_dataset.targets = train_dataset.targets[sel_idx]
 
-    
     # Inject symmetric noise to training set
     if args.inject_noise:
         im_per_class = int(len(train_dataset) / args.num_classes)
@@ -214,14 +207,15 @@ def main_worker(gpu, ngpus_per_node, args):
         num_shuffle = int(im_per_class * (args.inject_noise / (args.num_classes - 1)))
         for i in range(args.num_classes):
             noisy_idx = []
-            cur_idx = [idx for idx, label in enumerate(train_dataset.targets) if label==i]
+            cur_idx = [idx for idx, label in enumerate(train_dataset.targets) if label == i]
             shuffled_idx = random.sample(cur_idx, len(cur_idx))
             for r in range(args.num_classes):
-                noisy_idx += [r for idx in shuffled_idx[im_per_class - (r+1)*num_shuffle:im_per_class - r*num_shuffle]]
-            noisy_idx += [i for idx in shuffled_idx[:im_per_class - args.num_classes*num_shuffle]]
+                noisy_idx += [r for idx in
+                              shuffled_idx[im_per_class - (r + 1) * num_shuffle:im_per_class - r * num_shuffle]]
+            noisy_idx += [i for idx in shuffled_idx[:im_per_class - args.num_classes * num_shuffle]]
             noisy_labels[cur_idx] = np.array(noisy_idx)
         train_dataset.targets = noisy_labels
-        
+
     train_sampler = None
 
     train_loader = torch.utils.data.DataLoader(
@@ -232,7 +226,7 @@ def main_worker(gpu, ngpus_per_node, args):
         test_dataset,
         batch_size=args.batch_size, shuffle=False,
         num_workers=args.workers, pin_memory=True)
-    
+
     if args.sub:
         val_loader2 = torch.utils.data.DataLoader(
             sub_dataset,
@@ -243,11 +237,11 @@ def main_worker(gpu, ngpus_per_node, args):
         save_config(args)
         validate(val_loader, model, criterion, args)
         return
-    
+
     if args.compute_jacobian:
         assert not args.compute_jacobian_svd, "Jacobian prod and Jacobian SVD cannot be set at the same time."
         gvec = (torch.randn((1, args.num_classes)) / len(train_dataset)).cuda(args.gpu, non_blocking=True)
-    
+
     if args.compute_jacobian_svd:
         sv, vconv, vfc = get_jacobian_svd(train_loader, model, args, average_batches=args.average_batches)
 
@@ -262,12 +256,12 @@ def main_worker(gpu, ngpus_per_node, args):
         cur_weights = get_weights(model, layer_idx)
         if args.track_weights == 'filters':
             filter_w_file = args.outpath / 'filter_weights.pickle'
-            filter_w_dict = {('layer_'+str(l)): [] for i, l in enumerate(layer_idx) 
+            filter_w_dict = {('layer_' + str(l)): [] for i, l in enumerate(layer_idx)
                              if cur_weights[i].ndim > 2}
         if args.track_weights == 'norm':
-            w_norm_dict = {('layer_'+str(l)): 0 for i, l in enumerate(layer_idx) 
-                             if cur_weights[i].ndim > 1}
-    
+            w_norm_dict = {('layer_' + str(l)): 0 for i, l in enumerate(layer_idx)
+                           if cur_weights[i].ndim > 1}
+
     # TODO: scaling the weights of the model manually
     if args.scale_weights:
         scale_dict = {}
@@ -276,7 +270,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 continue
             scale_dict['layer_' + str(layer_idx[cur_l])] = np.linalg.norm(cur_w.flatten()).item()
         rescale_weights(model, scale_dict)
-        
+
     if args.scale_lr:
         if not args.opt.lower() == 'sgd':
             raise ValueError('SGD must be selected when learning rates are scaled!')
@@ -290,13 +284,13 @@ def main_worker(gpu, ngpus_per_node, args):
                 scale_dict['layer_' + str(layer_idx[cur_l])] = np.linalg.norm(cur_w.flatten()).item()
 
             opt_lr_dict = get_lr_scales(model, args.lr, scale_dict)
-        
-        param_setup = [{'params': cur_lay.parameters(), 'lr': opt_lr_dict[str(i)]} 
+
+        param_setup = [{'params': cur_lay.parameters(), 'lr': opt_lr_dict[str(i)]}
                        if (str(i) in opt_lr_dict)
                        else {'params': cur_lay.parameters()}
                        for i, cur_lay in enumerate(model)
                        if 'weight' in dir(cur_lay)]
-        args.initial_lr = [{'lr': opt_lr_dict[str(i)]} 
+        args.initial_lr = [{'lr': opt_lr_dict[str(i)]}
                            if (str(i) in opt_lr_dict)
                            else {'lr': args.lr}
                            for i, cur_lay in enumerate(model)
@@ -304,8 +298,7 @@ def main_worker(gpu, ngpus_per_node, args):
         optimizer = torch.optim.SGD(param_setup, args.lr,
                                     momentum=args.momentum,
                                     weight_decay=args.weight_decay)
-        
-    
+
     # TODO: testing scaled initialization
     if 'testing_scaled_initialization' in args.details:
         print('Warning: Scaling the weights of the linear layer by {}!'.format(float(args.details.split()[-1])))
@@ -315,8 +308,7 @@ def main_worker(gpu, ngpus_per_node, args):
             bound = 1 / np.sqrt(fan_in)
             with torch.no_grad():
                 model[-1].bias.uniform_(-bound, bound)
-        scale_initialization(model, [0,3,7,11], float(args.details.split()[-1]))
-
+        scale_initialization(model, [0, 3, 7, 11], float(args.details.split()[-1]))
 
     save_config(args)
     train_log = []
@@ -328,28 +320,27 @@ def main_worker(gpu, ngpus_per_node, args):
 
         # train for one epoch
         train(train_loader, model, criterion, optimizer, epoch, args)
-        
+
         epoch_log = {'epoch': epoch}
-        
+
         # update learning rate with scheduler
         if args.schedule_lr:
             scheduler.step()
 
         # evaluate on validation set
         tr_acc1, tr_acc5, _ = validate(train_loader, model, criterion, args)
-        epoch_log.update({'train': {'acc1': tr_acc1.cpu().numpy().item(), 
+        epoch_log.update({'train': {'acc1': tr_acc1.cpu().numpy().item(),
                                     'acc5': tr_acc5.cpu().numpy().item()}})
-        
+
         acc1, acc5, test_loss = validate(val_loader, model, criterion, args)
-        epoch_log.update({'test': {'acc1': acc1.cpu().numpy().item(), 
+        epoch_log.update({'test': {'acc1': acc1.cpu().numpy().item(),
                                    'acc5': acc5.cpu().numpy().item()}})
-        
+
         if args.sub:
             dum_acc1, dum_acc5, _ = validate(val_loader2, model, criterion, args)
-            epoch_log.update({'subset': {'acc1': dum_acc1.cpu().numpy().item(), 
+            epoch_log.update({'subset': {'acc1': dum_acc1.cpu().numpy().item(),
                                          'acc5': dum_acc5.cpu().numpy().item()}})
 
-        
         # compute the bias and variance
         if args.compute_variance:
 
@@ -361,12 +352,14 @@ def main_worker(gpu, ngpus_per_node, args):
                 outputs_sum = torch.Tensor(len(test_dataset), args.num_classes).zero_().cuda(args.gpu)
                 outputs_sumnormsquared = torch.Tensor(len(test_dataset)).zero_().cuda(args.gpu)
                 test_loss_sum = 0
-            
+
             test_loss_sum += test_loss
-            bias2, variance, outputs_sum, outputs_sumnormsquared = compute_bias_variance(model, val_loader, args, outputs_sum, outputs_sumnormsquared)
+            bias2, variance, outputs_sum, outputs_sumnormsquared = compute_bias_variance(model, val_loader, args,
+                                                                                         outputs_sum,
+                                                                                         outputs_sumnormsquared)
             variance_unbias = variance * args.trials / (args.trials - 1.0)
             bias2_unbias = test_loss_sum / (args.split + 1) - variance_unbias
-        
+
             epoch_log.update({'bias': bias2_unbias.item(), 'variance': variance_unbias.item()})
             with open(args.outpath / '{}.pickle'.format(epoch), 'wb') as fn:
                 pickle.dump([outputs_sum, outputs_sumnormsquared, test_loss_sum], fn)
@@ -375,26 +368,26 @@ def main_worker(gpu, ngpus_per_node, args):
         if args.compute_jacobian:
             jTg = get_jacobian_prod(train_loader, model, criterion, gvec, args)
             epoch_log.update({'J_norm': {str(k): v.item() for k, v in enumerate(jTg)}})
-        
+
         # TODO: tracking the weights of the layers
         if args.track_weights:
-            w_change_dict = {('layer_'+str(l)): 0 for l in layer_idx}
+            w_change_dict = {('layer_' + str(l)): 0 for l in layer_idx}
             new_weights = get_weights(model, layer_idx)
-            
+
             if args.track_weights == 'norm':
                 for cur_l, cur_w in enumerate(new_weights):
                     if not (cur_w.ndim > 1):
                         continue
                     w_norm_dict['layer_' + str(layer_idx[cur_l])] = np.linalg.norm(cur_w.flatten()).item()
                 epoch_log.update({'w_norm': {k: v for k, v in w_norm_dict.items()}})
-                
+
             else:
                 for cur_l in range(len(layer_idx)):
                     cur_change = new_weights[cur_l] - cur_weights[cur_l]
 
                     if args.track_weights == 'filters':
                         if cur_change.ndim > 2:
-                            cur_change = np.mean(cur_change, axis=(2,3))
+                            cur_change = np.mean(cur_change, axis=(2, 3))
                             filter_w_dict['layer_' + str(layer_idx[cur_l])].append(np.absolute(cur_change))
 
                     chng = np.absolute(np.mean(cur_change))
@@ -408,23 +401,23 @@ def main_worker(gpu, ngpus_per_node, args):
 
                 cur_weights = [wh for wh in new_weights]
                 new_weight = None
-        
+
         train_log.append(epoch_log)
         with open(log_file, 'w') as fn:
             json.dump(train_log, fn, indent=2)
-        
+
         # remember best acc@1 and save checkpoint
         is_best = acc1 > best_acc1
         best_acc1 = max(acc1, best_acc1)
-            
 
-        save_checkpoint({
-            'epoch': epoch + 1,
-            'arch': args.model,
-            'state_dict': model.state_dict(),
-            'best_acc1': best_acc1,
-            'optimizer' : optimizer.state_dict(),
-        }, is_best, outdir=(args.outpath if args.secure_checkpoint else None))
+        if args.secure_checkpoint:
+            save_checkpoint({
+                'epoch': epoch + 1,
+                'arch': args.model,
+                'state_dict': model.state_dict(),
+                'best_acc1': best_acc1,
+                'optimizer': optimizer.state_dict(),
+            }, is_best, outdir=args.outpath)
 
 
 def compute_bias_variance(net, testloader, args, outputs_sum, outputs_sumnormsquared):
@@ -445,7 +438,8 @@ def compute_bias_variance(net, testloader, args, outputs_sum, outputs_sumnormsqu
             outputs_sumnormsquared[total:total + targets.size(0)] += outputs.norm(dim=1) ** 2.0
 
             bias2 += (outputs_sum[total:total + targets.size(0), :] / (args.split + 1) - targets_onehot).norm() ** 2.0
-            variance += outputs_sumnormsquared[total:total + targets.size(0)].sum()/(args.split + 1) - (outputs_sum[total:total + targets.size(0), :]/(args.split + 1)).norm() ** 2.0
+            variance += outputs_sumnormsquared[total:total + targets.size(0)].sum() / (args.split + 1) - (
+                        outputs_sum[total:total + targets.size(0), :] / (args.split + 1)).norm() ** 2.0
             total += targets.size(0)
 
     return bias2 / total, variance / total, outputs_sum, outputs_sumnormsquared
@@ -465,30 +459,30 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
     for i, (input, target) in enumerate(train_loader):
         # measure data loading time
         data_time.update(time.time() - end)
-        
+
         if args.use_inverse_sqrt_lr:
             assert not (args.decay_max_epochs > 0), "lr scheduler crash, step and inverse sqrt lr can't be mutually set"
-            
+
             for cur_p, param_group in enumerate(optimizer.param_groups):
                 d_rate = (args.initial_lr_decay[cur_p]['decay']
                           if args.initial_lr_decay
                           else args.inverse_rate)
                 base_lr = (args.initial_lr[cur_p]['lr']
-                          if args.initial_lr
-                          else args.lr)
-                lr = base_lr / np.sqrt(1 + (epoch*len(train_loader) + i)/d_rate)
+                           if args.initial_lr
+                           else args.lr)
+                lr = base_lr / np.sqrt(1 + (epoch * len(train_loader) + i) / d_rate)
                 param_group['lr'] = lr
 
         if args.gpu is not None:
             input = input.cuda(args.gpu, non_blocking=True)
-        
+
         if args.loss == 'l2':
             zero_mat = np.zeros((len(target), args.num_classes), dtype=int)
             zero_mat[list(range(len(target))), target] = 1
             targetl2 = torch.from_numpy(zero_mat).float()
             targetl2 = targetl2.cuda(args.gpu, non_blocking=True)
         target = target.cuda(args.gpu, non_blocking=True)
-        
+
         # for LBFGS
         if args.opt.lower() == 'lbfgs':
             def closure():
@@ -497,18 +491,18 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
                 loss = criterion(output, target)
                 loss.backward()
                 return loss
-            
+
             optimizer.step(closure)
-            
+
         else:
             # compute output
             output = model(input)
             if args.loss == 'l2':
                 loss = criterion(output, targetl2)
             else:
-                loss = criterion(output, target) 
+                loss = criterion(output, target)
 
-            # measure accuracy and record loss
+                # measure accuracy and record loss
             acc1, acc5 = accuracy(output, target, topk=(1, args.kmax))
             losses.update(loss.item(), input.size(0))
             top1.update(acc1[0], input.size(0))
@@ -518,7 +512,6 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-        
 
         # measure elapsed time
         batch_time.update(time.time() - end)
@@ -531,8 +524,8 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
                   'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
                   'Acc@1 {top1.val:.3f} ({top1.avg:.3f})\t'
                   'Acc@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
-                   epoch, i, len(train_loader), batch_time=batch_time,
-                   data_time=data_time, loss=losses, top1=top1, top5=top5))
+                epoch, i, len(train_loader), batch_time=batch_time,
+                data_time=data_time, loss=losses, top1=top1, top5=top5))
 
 
 def validate(val_loader, model, criterion, args):
@@ -545,14 +538,14 @@ def validate(val_loader, model, criterion, args):
     model.eval()
 
     if args.track_correct:
-        corr_dict = {'correct':[]}
-    
+        corr_dict = {'correct': []}
+
     with torch.no_grad():
         end = time.time()
         for i, (input, target) in enumerate(val_loader):
             if args.gpu is not None:
                 input = input.cuda(args.gpu, non_blocking=True)
-            
+
             if args.loss == 'l2':
                 zero_mat = np.zeros((len(target), args.num_classes), dtype=int)
                 zero_mat[list(range(len(target))), target] = 1
@@ -566,11 +559,11 @@ def validate(val_loader, model, criterion, args):
                 loss = criterion(output, targetl2)
             else:
                 loss = criterion(output, target)
-            
+
             # record correctly classified examples
             if args.track_correct:
                 correct = accuracy(output, target, topk=(1, args.kmax), track=True)
-                corr_dict['correct'] += [(i*args.batch_size) + idx for idx, is_corr in 
+                corr_dict['correct'] += [(i * args.batch_size) + idx for idx, is_corr in
                                          enumerate(correct) if is_corr]
 
             # measure accuracy and record loss
@@ -589,8 +582,8 @@ def validate(val_loader, model, criterion, args):
                       'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
                       'Acc@1 {top1.val:.3f} ({top1.avg:.3f})\t'
                       'Acc@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
-                       i, len(val_loader), batch_time=batch_time, loss=losses,
-                       top1=top1, top5=top5))
+                    i, len(val_loader), batch_time=batch_time, loss=losses,
+                    top1=top1, top5=top5))
 
         # Record the indices of the correctly classified images
         if args.track_correct:
@@ -612,14 +605,14 @@ def accuracy(output, target, topk=(1,), track=False):
         _, pred = output.topk(maxk, 1, True, True)
         pred = pred.t()
         correct = pred.eq(target.view(1, -1).expand_as(pred))
-        
+
         # return indices of the correctly classified examples instead of accuracy.
         if track:
             return correct[:1].view(-1).cpu().numpy()
 
         res = []
         for k in topk:
-            correct_k = correct[:k].view(-1).float().sum(0, keepdim=True)
+            correct_k = correct[:k].contiguous().view(-1).float().sum(0, keepdim=True)
             res.append(correct_k.mul_(100.0 / batch_size))
         return res
 
@@ -655,26 +648,26 @@ if __name__ == "__main__":
     parser.add_argument('--workers', type=int, default=4, metavar='WORKERS',
                         help='Number of workers (default: 4)')
     parser.add_argument('--secure-checkpoint', action='store_true', default=False,
-                        help='Checkpoint in outdir rather than rootdir.')  
+                        help='Checkpoint in outdir rather than rootdir.')
     parser.add_argument('--gpu', type=int, default=None,
                         help='Number of GPUS to use')
     parser.add_argument('--seed', type=int, default=None,
-                        help='Random seed')                        
+                        help='Random seed')
     parser.add_argument('--model', type=str, default='resnet',
-                        help='Model architecture')   
+                        help='Model architecture')
     parser.add_argument('--pretrained', action='store_true', default=False,
                         help='Use pretrained model')
     parser.add_argument('--model-config')
     parser.add_argument('--num-planes', type=int, default=64, metavar='WIDTH',
                         help='Model width (default: 64)')
     parser.add_argument('--layer-names', action='store_true', default=False,
-                        help='Initialize model with names for the layers.') 
+                        help='Initialize model with names for the layers.')
     parser.add_argument('--opt', default='sgd', type=str, metavar='OPTIMIZER',
                         help='Optimizer (default: "sgd")')
     parser.add_argument('--loss', type=str, default='cross_entropy', metavar='LOSS',
                         help='loss function (default: cross entropy')
     parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
-                        help='SGD momentum (default: 0.9)')                        
+                        help='SGD momentum (default: 0.9)')
     parser.add_argument('--weight-decay', type=float, default=0.0001,
                         help='weight decay (default: 0.0001)')
     parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
@@ -684,17 +677,17 @@ if __name__ == "__main__":
     parser.add_argument('--decay-epochs', type=int, default=30, metavar='N',
                         help='epoch interval to decay LR')
     parser.add_argument('--decay-max-epochs', type=int, default=70, metavar='N',
-                        help='max number of epochs to decay LR')                        
+                        help='max number of epochs to decay LR')
     parser.add_argument('--use-inverse-sqrt-lr', action='store_true', default=False,
-                        help='Use inverse square-root learning rate decay')   
+                        help='Use inverse square-root learning rate decay')
     parser.add_argument('--inverse-rate', type=float, default=512.0, metavar='RATE',
                         help='Inverse square-root decay rate (default: 512)')
     parser.add_argument('--schedule-lr', action='store_true', default=False,
-                        help='Use lr scheduler')  
+                        help='Use lr scheduler')
     parser.add_argument('--norandomcrop', action='store_true', default=False,
-                        help='Disable random crop augmentation')  
+                        help='Disable random crop augmentation')
     parser.add_argument('--norandomflip', action='store_true', default=False,
-                        help='Disable random flip augmentation')  
+                        help='Disable random flip augmentation')
     parser.add_argument('--train-size', type=int, default=0,
                         help='Size of the random training subset to use (default: all)')
     parser.add_argument('--compute-variance', action='store_true', default=False,
@@ -706,17 +699,17 @@ if __name__ == "__main__":
     parser.add_argument('--trial-file', default='', type=str, metavar='FILE',
                         help='Resume from existing trial file')
     parser.add_argument('--select-classes', default=[], type=int, nargs='*',
-                        help='Selected subset of classes (default: all)')              
+                        help='Selected subset of classes (default: all)')
     parser.add_argument('--num-classes', type=int, default=10, metavar='N',
                         help='Number of label classes (default: 10)')
     parser.add_argument('--inject-noise', type=float, default=0.0, metavar='NOISE',
                         help='symmetric noise level for injection')
     parser.add_argument('--evaluate', action='store_true', default=False,
-                        help='Evaluate performance and quit')   
+                        help='Evaluate performance and quit')
     parser.add_argument('--resume', default='', type=str, metavar='RESUME',
                         help='Resume from checkpoint')
     parser.add_argument('--track-correct', action='store_true', default=False,
-                        help='Track indices of correctly classified examples')   
+                        help='Track indices of correctly classified examples')
     parser.add_argument('--scale-lr', type=float, default=None, metavar='SCALE',
                         help='Scale the learning rate of the fully connected layer')
     parser.add_argument('--initial-lr')
@@ -724,13 +717,13 @@ if __name__ == "__main__":
     parser.add_argument('--initial-lr-decay', default=[],
                         help='Initial learning rate decay')
     parser.add_argument('--compute-jacobian', action='store_true', default=False,
-                        help='Record the Jacobian norm')   
+                        help='Record the Jacobian norm')
     parser.add_argument('--compute-jacobian-svd', action='store_true', default=False,
-                        help='Compute the SVD of the Jacobian')  
+                        help='Compute the SVD of the Jacobian')
     parser.add_argument('--average-batches', action='store_true', default=False,
-                        help='Whether to average the SVD of the Jacobian across batches')  
+                        help='Whether to average the SVD of the Jacobian across batches')
     parser.add_argument('--track-weights', action='store_true', default=False,
-                        help='Record the norm of the weights')   
+                        help='Record the norm of the weights')
     parser.add_argument('--details', type=str, metavar='N', nargs='*',
                         default=['no', 'details', 'given'],
                         help='details about the experimental setup')
@@ -749,6 +742,7 @@ if __name__ == "__main__":
         args = parser.parse_args(remaining)
         return args
 
+
     # set parameters
     args = _parse_args()
 
@@ -766,16 +760,14 @@ if __name__ == "__main__":
         args.model_config.update({'num_classes': args.num_classes})
         if args.layer_names:
             args.model_config.update({'layer_names': args.layer_names})
-
-    args.scale_lr = {'17': args.lr * args.scale_lr} if args.scale_lr else {}
+    if isinstance(args.scale_lr, dict):
+        args.scale_lr = {'17': args.lr * args.scale_lr.get('17', 1)} if args.scale_lr else {}
 
     # rescale weights
     scale_weights = False
-
     # %%
-
     current_date = str(datetime.datetime.today().strftime('%Y-%m-%d-%H-%M-%S'))
-    args.outpath = (pathlib.Path.cwd() / 'results' / args.model / 
+    args.outpath = (pathlib.Path.cwd() / 'results' / args.model /
                     os.path.splitext(args.main)[0] / current_date)
 
     if not args.outpath.exists():
@@ -789,21 +781,20 @@ if __name__ == "__main__":
             assert count < 100, "Could not find an appropriate output path!"
         args.outpath = new_outpath
         args.outpath.mkdir(parents=True)
-        
 
     if args.seed is not None:
         random.seed(args.seed)
         torch.manual_seed(args.seed)
         cudnn.deterministic = True
         warnings.warn('You have chosen to seed training. '
-                    'This will turn on the CUDNN deterministic setting, '
-                    'which can slow down your training considerably! '
-                    'You may see unexpected behavior when restarting '
-                    'from checkpoints.')
+                      'This will turn on the CUDNN deterministic setting, '
+                      'which can slow down your training considerably! '
+                      'You may see unexpected behavior when restarting '
+                      'from checkpoints.')
 
     if args.gpu is not None:
         warnings.warn('You have chosen a specific GPU. This will completely '
-                    'disable data parallelism.')
+                      'disable data parallelism.')
 
     ngpus_per_node = torch.cuda.device_count()
     # Simply call main_worker function

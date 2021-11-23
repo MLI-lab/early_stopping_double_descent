@@ -3,18 +3,15 @@ import shutil
 import json
 import numpy as np
 from PIL import Image
+import os
 
 import torch
 from torch.utils.data import Dataset
 
 
-
-
-
-
 class CandidateDataset(Dataset):
     """Candidate dataset."""
-    
+
     def __init__(self, pathname, transform=None, train=True):
         """
         Args:
@@ -24,10 +21,10 @@ class CandidateDataset(Dataset):
         """
         self.samples, self.targets = np_loader(pathname.resolve(), train=train)
         self.transform = transform
-        
+
     def __len__(self):
         return len(self.samples)
-    
+
     def __getitem__(self, index):
         """
         Args:
@@ -38,14 +35,15 @@ class CandidateDataset(Dataset):
         """
         sample, target = self.samples[index], self.targets[index]
         sample = Image.fromarray(np.moveaxis(sample, 0, -1))
-        
+
         if self.transform is not None:
             sample = self.transform(sample)
-            
+
         # TODO: Target transform.
-        
+
         return sample, target
-    
+
+
 def np_loader(filename, train=True):
     data = np.load(filename)
     if train:
@@ -66,6 +64,7 @@ def adjust_learning_rate(optimizer, epoch, args):
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
+
     def __init__(self):
         self.reset()
 
@@ -82,16 +81,17 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
-    torch.save(state, filename)
+def save_checkpoint(state, is_best, outdir, filename='checkpoint.pt'):
+    path = os.path.join(outdir, filename)
+    torch.save(state, path)
     if is_best:
-        shutil.copyfile(filename, 'model_best.pth.tar')
+        shutil.copyfile(path, 'model_best.pth.tar')
 
 
 def save_config(args):
     config_file = args.outpath / 'config.json'
-    
-    config_dict = {k:(str(v) if isinstance(v, pathlib.PosixPath) else v) for k,v in args.__dict__.items()}
-    
+
+    config_dict = {k: (str(v) if isinstance(v, pathlib.PosixPath) else v) for k, v in args.__dict__.items()}
+
     with open(config_file, 'w') as fn:
         json.dump(config_dict, fn, indent=2)
