@@ -5,6 +5,7 @@ class BaseModel():
     def create(cls, message_type = 'resnet', **kwargs):
         MESSAGE_TYPE_TO_CLASS_MAP = {
             'mcnn' : mcnn.make_cnn,
+            'resnet' : resnet.Resnet18,
         }
 
         if message_type not in MESSAGE_TYPE_TO_CLASS_MAP:
