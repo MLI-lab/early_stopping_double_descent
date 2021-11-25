@@ -2,6 +2,7 @@
   "root": "./datasets",
   "workers": 4,
   "epochs": 4000,
+  "secure_checkpoint": true,
   "start_epoch": 0,
   "batch_size": 128,
   "lr": 0.1,
@@ -24,6 +25,7 @@
   "mix_cifar": false,
   "mix_rate": 0.04,
   "schedule_lr": false,
+  "decay_max_epochs": 0,
   "max_lr_adjusting_epoch": 0,
   "use_inverse_sqrt_lr": true,
   "loss_func": "cross_entropy",
@@ -76,6 +78,6 @@
   "pretrained": false,
   "details": "emphasize mcnn double descent",
   "seed": null,
-  "gpu": 1,
+  "gpu": 0,
   "distributed": false
 }
