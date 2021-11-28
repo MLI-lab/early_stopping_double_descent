@@ -22,6 +22,7 @@
   "mix_cifar": false,
   "mix_rate": 0.04,
   "schedule_lr": false,
+  "decay_max_epochs": 0,
   "max_lr_adjusting_epoch": 0,
   "use_inverse_sqrt_lr": true,
   "use_Adam": false,
