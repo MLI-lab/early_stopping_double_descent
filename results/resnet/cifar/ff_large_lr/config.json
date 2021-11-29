@@ -16,9 +16,10 @@
   "test_file": "cifar.npz",
   "model": "resnet",
   "model_config": {
+    "num_classes": 10,
     "num_planes": 64
   },
-  "num_classes": 10,
+  
   "train_size": 0,
   "select_class_list": [],
   "inject_noise": 0.022222222222222223,
