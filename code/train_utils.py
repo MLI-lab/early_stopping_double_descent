@@ -3,6 +3,7 @@ import shutil
 import json
 import numpy as np
 from PIL import Image
+import os 
 
 import torch
 from torch.utils.data import Dataset
@@ -82,11 +83,11 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
-    torch.save(state, filename)
+def save_checkpoint(state, is_best, outdir, filename='checkpoint.pt'):
+    path = os.path.join(outdir, filename)
+    torch.save(state, path)
     if is_best:
-        shutil.copyfile(filename, 'model_best.pth.tar')
-
+        shutil.copyfile(path, 'model_best.pth.tar')
 
 def save_config(args):
     config_file = args.outpath / 'config.json'

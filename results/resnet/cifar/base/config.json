@@ -1,7 +1,7 @@
 {
   "root": "./datasets",
   "workers": 4,
-  "epochs": 6000,
+  "epochs": 5,
   "start_epoch": 0,
   "batch_size": 128,
   "lr": 0.1,
@@ -13,11 +13,12 @@
   "main_file": "cifar.npz",
   "sub_file": null,
   "test_file": "cifar.npz",
-  "model": "mcnn",
+  "model": "resnet",
   "model_config": {
+    "num_classes": 10,
     "num_planes": 64
   },
-  "num_classes": 10,
+  
   "inject_noise": 0.022222222222222223,
   "mix_cifar": false,
   "mix_rate": 0.04,
